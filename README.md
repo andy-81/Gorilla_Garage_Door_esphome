@@ -6,3 +6,4 @@ I thought I would share details of how I ended up integrating my Gorilla/Teleco 
 ToDo: 
 Write up details
 Create Wiring diagram
+Mark Up yaml code better
