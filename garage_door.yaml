@@ -1,0 +1,187 @@
+esphome:
+  name: garage-door
+  friendly_name: Garage-Door
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "key" #update with API encryption key
+
+ota:
+  - platform: esphome
+    password: "otapassword" #update with OTA Password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Garage-Door Fallback Hotspot"
+    password: "password" #update with fallback password
+
+captive_portal:
+
+# Webserver used to test before importing into Home Assistant, uncomment the below two lines to provide a web interface
+web_server:
+  port: 80
+
+# Not currently used, added to provide distance sensor to work out % open
+#i2c:
+#  sda: 21
+#  scl: 22
+#  scan: true
+
+binary_sensor:
+  # Open contact sensor to confirm garage is fully open.
+  - platform: gpio
+    pin:
+      number: 14
+      mode: INPUT_PULLUP
+    name: "Open Sensor"
+    id: open_sensor
+    disabled_by_default: True
+    filters:
+      - invert: 
+  
+  # Closed contact sensor to confirm garage is fully closed
+  - platform: gpio
+    pin:
+      number: 12
+      mode: INPUT_PULLUP
+    name: "Close Sensor"
+    id: close_sensor
+    disabled_by_default: True
+    filters:
+      - invert:
+
+  # Additional sensor used to provide an indoor button to manually open the garage
+  - platform: gpio
+    pin:
+       number: 27
+       mode: INPUT_PULLUP
+    name: "Indoor Button"
+    id: indoor_button
+    disabled_by_default: False
+    on_press:
+    - lambda: |-
+        if (id(lock_garage).state) {
+          ESP_LOGI("custom", "Garage Door Lock On, Not Opening Garage!");
+        } else {
+          id(internal_button).press();}
+    filters:
+      - delayed_on: 10ms
+      - invert:
+         
+
+sensor:
+  #Sensor used to compare the state for the Switch funtion, linked to stop function
+#  - platform: template
+#    id: garage_sensor
+
+  # Requires I2C to be uncommented above, this is the range sensor I was thinking of using to calculate open %, still working on the lamda to convert to % open
+#  - platform: vl53l0x
+#    name: "RAW Range"
+#    address: 0x29
+#    update_interval: 5s
+#    long_range: true
+#    id: raw_range
+#    filters:
+#      - round: 2
+#    - lambda: return (x * - 0)/(2.00 - 0);
+
+output:
+  # Output to trigger relay to send the open command to the remote
+  - platform: gpio
+    pin: 32
+    id: open_door
+    inverted: True
+
+  # Output to trigger relay to send close command to the remote
+  - platform: gpio
+    pin: 33
+    id: close_door
+    inverted: True
+  
+  # Output to trigger relay to send stop command, this is hardwired into the garage door manual button
+  - platform: gpio
+    pin: 25
+    id: stop_door
+    inverted: True
+
+  - platform: gpio
+    pin: 26
+    id: internal_press
+    inverted: True
+
+cover:
+  - platform: feedback
+    name: "Garage Door"
+    id: garage_cover
+    has_built_in_endstop: True
+    
+    open_action:
+      - button.press: open_garage
+    open_duration: 26s
+    open_endstop: open_sensor
+
+    close_action: 
+      - button.press: close_garage
+    close_duration: 20s
+    close_endstop: close_sensor
+
+    stop_action:
+      button.press: stop_garage
+
+switch:
+
+  - platform: template
+    name: "Garage Lock"
+    id: lock_garage
+    optimistic: True
+
+button:
+  # Button to trigger the GPIO output to open the garage door
+  - platform: output
+    name: "Open Garage"
+    id: open_garage
+    output: open_door
+    duration: 1s
+    disabled_by_default: True
+
+  
+  # Button to trigger GPIO output to close garage door
+  - platform: output
+    name: "Close Garage"
+    id: close_garage
+    output: close_door
+    duration: 1s
+    disabled_by_default: True
+
+
+  # Button to expose to trigger the stop/internal button to trigger relay for physical connection to garage door
+  - platform: output
+    name: "Stop Door"
+    id: stop_garage
+    output: stop_door
+    duration: 1s
+    disabled_by_default: True
+
+  - platform: output
+    name: "Internal Button Press"
+    id: internal_button
+    output: internal_press
+    duration: 1s
+    disabled_by_default: True
+
+  - platform: restart
+    name: "Restart"
+    
